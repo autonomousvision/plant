@@ -1,0 +1,12 @@
+name: PlanT
+
+agent: ${user.working_dir}/carla_agent_files/PlanT_agent.py
+
+# model_path needs to be adapted depending on the experiment
+model_path: checkpoints/PlanT/3x/PlanT_medium
+
+agent_root: ${user.working_dir}/${experiments.model_path}
+agent_config: ${experiments.agent_root}/log/
+
+# model_ckpt_load_path needs to be adapted depending on the experiment
+model_ckpt_load_path: "${experiments.agent_root}/checkpoints/epoch=047.ckpt"

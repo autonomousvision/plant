@@ -1,0 +1,46 @@
+name: plant
+channels:
+  - pyg
+  - conda-forge
+  - huggingface
+  - anaconda
+  - pytorch
+  - defaults
+dependencies:
+  - cudatoolkit=10.2.89=hfd86e86_1
+  - huggingface_hub=0.0.17=py_0
+  - libjpeg-turbo=2.1.0=h7f98852_0
+  - libpng=1.6.37=hbc83047_0
+  - matplotlib=3.3.4
+  - networkx=2.5.1=pyhd3eb1b0_0
+  - numpy=1.20.2
+  - pip=21.1.2=py37h06a4308_0
+  - python=3.7.10=h12debd9_4
+  - pytorch=1.9.0=py3.7_cuda10.2_cudnn7.6.5_0
+  - pytorch-scatter=2.0.9=py37_torch_1.9.0_cu102
+  - six=1.16.0=pyhd3eb1b0_0
+  - torchaudio=0.9.0=py37
+  - torchvision=0.10.0=py37_cu102
+  - pip:
+    - beartype==0.9.1
+    - dictor==0.1.7
+    - diskcache==5.3.0
+    - einops==0.4.0
+    - ephem==4.0.0.2
+    - filterpy==1.4.5
+    - gitpython==3.1.18
+    - hydra-core==1.1.1
+    - omegaconf==2.1.1
+    - opencv-python==4.5.2.54
+    - pillow==8.3.2
+    - py-trees==0.8.3
+    - pygame==2.0.1
+    - pytorch-lightning==1.5.10
+    - rdp==0.8
+    - setuptools==59.5.0
+    - shapely==1.7.1
+    - tabulate==0.8.9
+    - torchmetrics==0.7.2
+    - transformers==4.18.0
+    - wandb==0.12.10
+

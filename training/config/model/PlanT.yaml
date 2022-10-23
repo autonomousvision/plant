@@ -1,0 +1,36 @@
+
+
+name: PlanT
+
+training:
+  max_epochs: 50
+  batch_size: 32
+  learning_rate: 1e-4
+  betas: [0.9, 0.95]
+  grad_norm_clip: 1.0
+  weight_decay: 0.1 # only applied on matmul weights
+  ckpt_path: log/
+  num_workers: 12 # for DataLoader
+  pred_len: 4
+  seq_len: 1
+  max_NextRouteBBs: 2 # max 10 prevents really high ids if route is long
+  input_ego: False
+  remove_velocity: None # input
+  route_only_wp: False # True
+  remove_back: False
+  pretraining_path: none
+  add_noise: False
+
+pre_training:
+  pretraining: none
+  multitask: False
+  forecastLoss_weight: 1
+  future_timestep: 1
+  quantize: True
+  precision_pos: 7 # 7: 0.5meters
+  precision_speed: 4 # 4: 3.75km/h
+  precision_angle: 5 # 5: 11.25degrees
+
+network:
+  hf_checkpoint: prajjwal1/bert-medium #prajjwal1/bert-tiny, prajjwal1/bert-mini, prajjwal1/bert-small, prajjwal1/bert-medium
+  embd_pdrop: 0.1

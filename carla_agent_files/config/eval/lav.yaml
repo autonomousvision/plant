@@ -1,0 +1,5 @@
+BENCHMARK: lav
+route_rel: leaderboard/data/lav/lav.xml
+routes: ${user.working_dir}/${eval.route_rel}
+scenarios_rel: leaderboard/data/lav/eval_scenarios.json
+scenarios: ${user.working_dir}/${eval.scenarios_rel}

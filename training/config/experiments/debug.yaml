@@ -1,0 +1,13 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: ./tmp_debug
+
+debug: True
+gpus: 1
+
+model:
+  training:
+    max_epochs: 2
+    num_workers: 0

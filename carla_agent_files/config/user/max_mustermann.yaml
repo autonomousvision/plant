@@ -1,0 +1,2 @@
+working_dir: /home/mmustermann/coding/02_sequential_driving/release/plant
+carla_path: ${user.working_dir}/carla

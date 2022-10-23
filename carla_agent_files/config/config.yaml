@@ -1,0 +1,32 @@
+defaults:
+  - user: katrin
+  - experiments: PlanTmedium3x
+  - eval: longest6
+
+save_gif: False
+
+host: localhost
+port: 2000
+trafficManagerPort: 8070
+trafficManagerSeed: 0
+dataProviderSeed: 0
+debug: 0
+record: ''
+timeout: 600.0
+
+hydra:
+  run:
+    dir: ${experiments.agent_root}/${save_path}
+
+repetitions: 1
+track: MAP
+resume: 0
+save_path: TEST_EVAL
+log_save_path: result_logs
+checkpoint_file: eval_longest6.json
+checkpoint: ${experiments.agent_root}/${save_path}/${checkpoint_file}
+
+DEBUG_CHALLENGE: 0
+CUDA_VISIBLE_DEVICES: 0
+SHUFFLE_WEATHER: 0
+DATAGEN: 0

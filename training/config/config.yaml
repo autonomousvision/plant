@@ -1,0 +1,38 @@
+defaults:
+  - user: max_mustermann
+  - model: PlanT
+
+
+exp_folder_name: DEBUG
+hydra:
+  run:
+    dir: outputs/${exp_folder_name}/${expname}/${hydra.job.override_dirname}/${now:%Y-%m-%d_%H-%M-%S}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - expname
+        kv_sep: '='
+        item_sep: '_'
+
+
+lrDecay_epoch: 25
+
+
+seed: 1234
+debug: True
+overfit: 0
+resume: True
+use_caching: True
+custom_sampler: True
+gpus: 1
+trainset_size: 1
+benchmark: longest6
+
+expname: DEBUG
+wandb_name: training_pamidata_onlybrakeloss_${hydra:job.override_dirname}
+save_dir: ${hydra:run.dir}
+
+data_dir: ${user.working_dir}/data/carla/pami_bb_dataset_27_09_22_v4_1
+
+
