@@ -9,7 +9,7 @@ This repository provides code for the following paper:
 *PlanT: Explainable Planning Transformers via Object-Level Representations*, CoRL 2022.  
 
 
-![demo](gfx/plant_teaser2.gif)
+![demo](gfx/plant_teaser.gif)
 
 # Content
 * [ToDos](#todos)
