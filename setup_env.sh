@@ -9,7 +9,7 @@ mkdir -p ./etc/conda/deactivate.d
 touch ./etc/conda/activate.d/env_vars.sh
 touch ./etc/conda/deactivate.d/env_vars.sh
 
-echo "export CARLA_ROOT=\${pwd_root}/carla" >> ./etc/conda/activate.d/env_vars.sh
+echo "export CARLA_ROOT=${pwd_root}/carla" >> ./etc/conda/activate.d/env_vars.sh
 echo "export CARLA_SERVER=\${CARLA_ROOT}/CarlaUE4.sh" >> ./etc/conda/activate.d/env_vars.sh
 echo "export PYTHONPATH=\$PYTHONPATH:\${CARLA_ROOT}/PythonAPI" >> ./etc/conda/activate.d/env_vars.sh
 echo "export PYTHONPATH=\$PYTHONPATH:\${CARLA_ROOT}/PythonAPI/carla" >> ./etc/conda/activate.d/env_vars.sh
