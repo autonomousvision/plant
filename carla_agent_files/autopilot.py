@@ -14,7 +14,8 @@ from collections import deque, defaultdict
 
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from leaderboard.autoagents import autonomous_agent, autonomous_agent_local
-from carla_agent_files.nav_planner import PIDController, RoutePlanner, interpolate_trajectory
+from carla_agent_files.nav_planner import PIDController, interpolate_trajectory
+from carla_agent_files.nav_planner import RoutePlanner_new as RoutePlanner
 from carla_agent_files.agent_utils.coordinate_utils import preprocess_compass, inverse_conversion_2d
 
 DATA_SAVE_PATH = os.environ.get('DATA_SAVE_PATH', None)

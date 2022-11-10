@@ -14,12 +14,14 @@ import carla
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 from carla_agent_files.agent_utils.filter_functions import *
+from carla_agent_files.agent_utils.coordinate_utils import preprocess_compass, inverse_conversion_2d
 
 from carla_agent_files.data_agent_boxes import DataAgent
 from training.PlanT.dataset import generate_batch, split_large_BB
 from training.PlanT.lit_module import LitHFLM
 
-from nav_planner import extrapolate_waypoint_route, RoutePlanner
+from nav_planner import extrapolate_waypoint_route
+from nav_planner import RoutePlanner_new as RoutePlanner
 from scenario_logger import ScenarioLogger
 
 def get_entry_point():
@@ -146,41 +148,37 @@ class PlanTAgent(DataAgent):
     def tick(self, input_data):
         result = super().tick(input_data)
 
-        gps = input_data['gps'][1][:2]
+        pos = self._route_planner.convert_gps_to_carla(input_data['gps'][1][:2])
         speed = input_data['speed'][1]['speed']
-        compass = input_data['imu'][1][-1]
-        # CARLA 0.9.10 occasionally sends NaN values in the compass
-        if np.isnan(compass):
-            compass = 0.0
-        pos = self._get_position(gps)
+        compass = preprocess_compass(input_data['imu'][1][-1])
+
         
         if not self.filter_initialized:
-            self.ukf.x = np.array([pos[0], pos[1], normalize_angle(compass), speed])
+            self.ukf.x = np.array([pos[0], pos[1], compass, speed])
             self.filter_initialized = True
 
         self.ukf.predict(steer=self.control.steer,
                         throttle=self.control.throttle,
                         brake=self.control.brake)
-        self.ukf.update(np.array([pos[0], pos[1], normalize_angle(compass), speed]))
+        self.ukf.update(np.array([pos[0], pos[1], compass, speed]))
         filtered_state = self.ukf.x
         self.state_log.append(filtered_state)
         result['gps'] = filtered_state[0:2]
 
         waypoint_route = self._route_planner.run_step(filtered_state[0:2])
-        next_wp, next_cmd = waypoint_route[1] if len(
-            waypoint_route) > 1 else waypoint_route[0]
-        result['next_command'] = next_cmd.value
+        
+        if len(waypoint_route) > 2:
+            target_point, _ = waypoint_route[1]
+            next_target_point, _ = waypoint_route[2]
+        elif len(waypoint_route) > 1:
+            target_point, _ = waypoint_route[1]
+            next_target_point, _ = waypoint_route[1]
+        else:
+            target_point, _ = waypoint_route[0]
+            next_target_point, _ = waypoint_route[0]
 
-        theta = compass + np.pi / 2
-        R = np.array([
-            [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)]
-            ])
-
-        local_command_point = np.array(
-            [next_wp[0] - filtered_state[0], next_wp[1] - filtered_state[1]])
-        local_command_point = R.T.dot(local_command_point)
-        result['target_point'] = tuple(local_command_point)
+        ego_target_point = inverse_conversion_2d(target_point, result['gps'], compass)
+        result['target_point'] = tuple(ego_target_point)
 
         if SAVE_GIF == True and (self.exec_or_inter is None or self.exec_or_inter == 'inter'):
             result['spec'] = input_data['spec']
@@ -498,8 +496,8 @@ def create_BEV(labels_org, gt_traffic_light_hazard, target_point, pred_wp, pix_p
     image = np.array(imgs[0])
     image1 = np.array(imgs[1])
     image2 = np.array(imgs[2])
-    x = target_point[0][0]*PIXELS_PER_METER + origin[1]
-    y = (target_point[0][1]+1.3)*PIXELS_PER_METER + origin[0]  
+    x = target_point[0][1]*PIXELS_PER_METER + origin[1]
+    y = -(target_point[0][0])*PIXELS_PER_METER + origin[0]  
     point = (int(x), int(y))
     cv2.circle(image, point, radius=2, color=color[0], thickness=2)
     cv2.circle(image1, point, radius=2, color=color[0], thickness=2)

@@ -377,7 +377,7 @@ class DataAgent(AutoPilot):
             # pos = np.average(self.gps_buffer, axis=0)  # Denoised position
             self._waypoint_planner.load()
             waypoint_route = self._waypoint_planner.run_step(pos)
-            self.waypoint_route = np.array([[node[0][1],-node[0][0]] for node in waypoint_route])
+            self.waypoint_route = np.array([[node[0][0],node[0][1]] for node in waypoint_route])
             self._waypoint_planner.save()
         
         
