@@ -19,11 +19,10 @@ training:
   route_only_wp: False # True
   remove_back: False
   pretraining_path: none
-  add_noise: False
 
 pre_training:
-  pretraining: none
-  multitask: False
+  pretraining: forecast #none
+  multitask: True
   forecastLoss_weight: 1
   future_timestep: 1
   quantize: True

@@ -1,5 +1,7 @@
 # PlanT: Explainable Planning Transformers via Object-Level Representations
 
+**Note**: We made some changes in the agent files to ensure compatibility with our perception PlanT. We therefore uploaded new checkpoint files. The old one does not work anymore with the current code.
+
 ## [Paper](https://www.katrinrenz.de/plant/resources/2022_PlanT_CoRL.pdf) | [Project Page](http://www.katrinrenz.de/plant)
 
 
@@ -16,13 +18,14 @@ This repository provides code for the following paper:
 * [Setup](#setup)
 * [Data and models](#data-and-models)
 * [Data generation](#data-generation)
+* [Training](#training)
 * [Evaluation](#evaluation)
 * [Citation](#citation)
 
 ## ToDos
 - [x] Best checkpoint + evaluation
-- [ ] Other checkpoints
-- [ ] Training
+- [x] Other checkpoints
+- [x] Training
 - [x] Data generation + Dataset
 - [ ] PlanT with perception
 - [ ] Explainability metric
@@ -79,6 +82,14 @@ python leaderboard/scripts/run_evaluation.py user=$USER experiments=datagen eval
 If you want to also save the sensor data that we used to train the perception module you can add the flag `experiments.SAVE_SENSORS=1`.
 
 To generate the whole dataset you can use the `datagen.sh` file.
+
+
+## Training
+To run the PlanT training on the 3x dataset, run:
+```
+python training/PlanT/lit_train.py user=$USER model=PlanT
+```
+To change any hyperparameters have a look at `training/config/model/PlanT.yaml`. For general training settings (e.g., #GPUs) check `training/config/config.yaml`.
 
 
 ## Evaluation

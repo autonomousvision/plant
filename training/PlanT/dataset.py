@@ -34,18 +34,18 @@ class PlanTDataset(Dataset):
 
         label_raw_path = self.filter_data_by_town(label_raw_path_all, split)
             
-        logging.info(f"Found {len(label_raw_path)} Route folders")
+        # logging.info(f"Found {len(label_raw_path)} Route folders")
 
         # add multiple datasets (different seeds while collecting data)
         if cfg.trainset_size >= 2:
-            add_data_path = "/mnt/qb/work/geiger/krenz73/datasets/02_sequential_driving_data/carla/pami_bb_dataset_19_05_22_v2Add"
+            add_data_path = root[:-2] + "_2"
             label_add_path_all = glob.glob(
                 add_data_path + "/**/Routes*", recursive=True
             )
             label_add_path = self.filter_data_by_town(label_add_path_all, split)
             label_raw_path += label_add_path
         if cfg.trainset_size >= 3:
-            add_data_path = "/mnt/qb/work/geiger/krenz73/datasets/02_sequential_driving_data/carla/pami_bb_dataset_19_05_22_v2Add2"
+            add_data_path = root[:-2] + "_3"
             label_add_path_all = glob.glob(
                 add_data_path + "/**/Routes*", recursive=True
             )
@@ -54,7 +54,7 @@ class PlanTDataset(Dataset):
         if cfg.trainset_size >= 4:
             raise NotImplementedError
 
-        logging.info(f"Found {len(label_raw_path)} Route folders")
+        logging.info(f"Found {len(label_raw_path)} Route folders containing {cfg.trainset_size} datasets.")
 
         for sub_route in label_raw_path:
 
@@ -94,7 +94,7 @@ class PlanTDataset(Dataset):
         # A workaround is to store the string lists as numpy byte objects because they only have 1 refcount.
         self.labels       = np.array(self.labels      ).astype(np.string_)
         self.measurements = np.array(self.measurements).astype(np.string_)
-        print("Loading %d lidars from %d folders"%(len(self.labels), len(root)))
+        print(f"Loading {len(self.labels)} samples from {len(root)} folders")
 
 
     def __len__(self) -> int:
@@ -145,26 +145,8 @@ class PlanTDataset(Dataset):
             ego_waypoint = waypoints[-1]
 
             sample["waypoints"] = ego_waypoint
-
-            # get target point
-            ego_theta = (
-                loaded_measurements[self.cfg_train.seq_len - 1]["theta"]
-            ) 
-            ego_x = loaded_measurements[self.cfg_train.seq_len - 1]["x"]
-            ego_y = loaded_measurements[self.cfg_train.seq_len - 1]["y"]
-            x_command = loaded_measurements[self.cfg_train.seq_len - 1]["x_command"]
-            y_command = loaded_measurements[self.cfg_train.seq_len - 1]["y_command"]
-
-            local_command_point = []
-            R = np.array(
-                [
-                    [np.cos(np.pi / 2 + ego_theta), -np.sin(np.pi / 2 + ego_theta)],
-                    [np.sin(np.pi / 2 + ego_theta), np.cos(np.pi / 2 + ego_theta)],
-                ]
-            )
-            local_command_point = np.array([x_command - ego_x, y_command - ego_y])
-            local_command_point = R.T.dot(local_command_point)
-
+      
+            local_command_point = np.array(loaded_measurements[self.cfg_train.seq_len - 1]["target_point"])
             sample["target_point"] = tuple(local_command_point)
             sample["light"] = loaded_measurements[self.cfg_train.seq_len - 1][
                 "light_hazard"
@@ -229,9 +211,6 @@ class PlanTDataset(Dataset):
                         float(pos[j][0]),
                         float(pos[j][1]),
                         float(yaw[j] * 180 / 3.14159265359),  # in degrees
-                        # float(x["position"][0]) - float(labels_data_all[0]["position"][0]),
-                        # float(x["position"][1]) - float(labels_data_all[0]["position"][1]),
-                        # float(x["yaw"] * 180 / 3.14159265359),  # in degrees
                         float(x["speed"] * 3.6),  # in km/h
                         float(x["extent"][2]),
                         float(x["extent"][1]),
@@ -353,7 +332,8 @@ class PlanTDataset(Dataset):
                 sample[sample_key] = data_car + data_route
                 
                 # for debugging, need to also uncomment saving inside of the function
-                # create_BEV(data_car, data_route, True, False, inp=sample_key, cnt=self.cnt)
+                if self.cfg.visualize:
+                    create_BEV(data_car, data_route, True, False, inp=sample_key, cnt=self.cnt, visualize=True)
 
             if not self.data_cache is None:
                 self.data_cache[labels[0]] = sample
@@ -361,28 +341,6 @@ class PlanTDataset(Dataset):
         assert len(sample["input"]) == len(
             sample["output"]
         ), "Input and output have different length"
-        
-        ## add noise
-        if self.cfg.model.training.add_noise == True:
-
-            for sample_key in ["input"]:
-                for object in sample[sample_key]:
-                    if object[0] == 1.0:
-                        noise_pos = np.random.normal(0,0.4,2)
-                        noise_yaw = np.random.normal(0,2.5,1)
-                        noise_speed = np.random.normal(0,5,1)
-                        object[1] += noise_pos[0]
-                        object[2] += noise_pos[1]
-                        object[3] += noise_yaw[0]
-                        object[4] += noise_speed[0]
-                        object[4] = max(0, object[4])
-                        
-                    elif object[0] == 2.0:
-                        noise_pos = np.random.normal(0,0.5,2)
-                        object[1] += noise_pos[0]
-                        object[2] += noise_pos[1]
-                        
-        
 
         self.cnt+=1
         return sample

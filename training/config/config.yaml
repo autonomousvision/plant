@@ -3,7 +3,7 @@ defaults:
   - model: PlanT
 
 
-exp_folder_name: DEBUG
+exp_folder_name: training
 hydra:
   run:
     dir: outputs/${exp_folder_name}/${expname}/${hydra.job.override_dirname}/${now:%Y-%m-%d_%H-%M-%S}
@@ -16,23 +16,24 @@ hydra:
         item_sep: '_'
 
 
-lrDecay_epoch: 25
+lrDecay_epoch: 46
 
 
 seed: 1234
-debug: True
+debug: False
+visualize: True
 overfit: 0
 resume: True
 use_caching: True
-custom_sampler: True
+custom_sampler: False
 gpus: 1
-trainset_size: 1
+trainset_size: 3
 benchmark: longest6
 
 expname: DEBUG
-wandb_name: training_pamidata_onlybrakeloss_${hydra:job.override_dirname}
+wandb_name: training_PlanT_${hydra:job.override_dirname}
 save_dir: ${hydra:run.dir}
 
-data_dir: ${user.working_dir}/data/carla/pami_bb_dataset_27_09_22_v4_1
+data_dir: ${user.working_dir}/data/PlanT/PlanT_data_1 # Path to the data directory of the first part of the dataset (ending '_1')
 
 

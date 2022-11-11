@@ -65,7 +65,7 @@ def viz_tokens_bev(input, pred, gt, brake_pred, brake_gt, epoch, train=False):
         image.save(f'bev_viz_{suffix}/epoch{epoch}/brakepred_{brake_pred[i].item()}_gt_{brake_gt[i].item()}_{time.time()}.png')
     
     
-def create_BEV(vehicles, route, input_extent, LBC, pix_per_m=5, use_speed_for_whole_vehicle=False, remove_speed=False, inp='input', cnt=0):
+def create_BEV(vehicles, route, input_extent, LBC, pix_per_m=5, use_speed_for_whole_vehicle=True, remove_speed=False, inp='input', cnt=0, visualize=False):
     
     size = 192
     # TODO support for AIMBEV:
@@ -150,9 +150,9 @@ def create_BEV(vehicles, route, input_extent, LBC, pix_per_m=5, use_speed_for_wh
         image = np.stack([images[0]/255, vel_array, images[1]/255], axis=-1)
         BEV = image
 
-    if cnt%20 == 0:
+    if cnt%20 == 0 and visualize:
         Path(f'bev_viz').mkdir(parents=True, exist_ok=True)
-        Image.fromarray((image * 255).astype(np.uint8)).save(f'bev_viz/new2_{cnt}_{inp}_{time.time()}.png')
+        Image.fromarray((BEV * 255).astype(np.uint8)).save(f'bev_viz/new2_{cnt}_{inp}_{time.time()}.png')
 
 
     return BEV
