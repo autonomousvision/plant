@@ -15,14 +15,15 @@ This repository provides code for the following paper:
 * [ToDos](#todos)
 * [Setup](#setup)
 * [Data and models](#data-and-models)
+* [Data generation](#data-generation)
 * [Evaluation](#evaluation)
 * [Citation](#citation)
 
 ## ToDos
 - [x] Best checkpoint + evaluation
 - [ ] Other checkpoints
-- [ ] Dataset and training
-- [ ] Data generation
+- [ ] Training
+- [x] Data generation + Dataset
 - [ ] PlanT with perception
 - [ ] Explainability metric
 
@@ -44,17 +45,24 @@ chmod +x setup_env.sh
 ./setup_env.sh
 ```
 
+
 ## Data and models
-You can download our pretrained PlanT-medium 3x by executing:
+You can download our pretrained PlanT models by executing:
 ``` bash
 chmod +x download.sh
 ./download.sh
 ```
 
-The other checkpoints and the dataset used for training will be uploaded soon.
+To download our 3x dataset run:
+``` bash
+chmod +x download_data.sh
+./download_data.sh
+```
 
-## Evaluation
-Start a Carla server:
+
+## Data generation
+You can download our dataset or generate your own dataset.
+In order to generate your own one you first need to start a Carla server:
 ```
 # with display
 ./carla/CarlaUE4.sh --world-port=2000 -opengl
@@ -63,6 +71,18 @@ Start a Carla server:
 # without display
 SDL_VIDEODRIVER=offscreen SDL_HINT_CUDA_DEVICE=0 ./carla/CarlaUE4.sh --world-port=2000 -opengl
 ```
+
+To generate the data for the route specified in `carla_agent_files/config/eval/train.yaml` you can run
+```
+python leaderboard/scripts/run_evaluation.py user=$USER experiments=datagen eval=train
+```
+If you want to also save the sensor data that we used to train the perception module you can add the flag `experiments.SAVE_SENSORS=1`.
+
+To generate the whole dataset you can use the `datagen.sh` file.
+
+
+## Evaluation
+Start a Carla server (see [Data generation](#data-generation)).
 
 When the server is running, start the evaluation with:
 ```

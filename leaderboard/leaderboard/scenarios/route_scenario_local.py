@@ -466,12 +466,12 @@ class RouteScenario(BasicScenario):
 
             elif os.environ.get('BENCHMARK')=='longest6':
                 amount = 500 # use all spawn points
-            elif os.environ.get('BENCHMARK')=='trainset':
+            elif os.environ.get('BENCHMARK')=='train':
                 pass
             else:
                 raise ValueError('Unknown benchmark')
 
-        elif int(os.environ.get('DATAGEN')):
+        elif int(os.environ.get('DATAGEN')) or os.environ.get('BENCHMARK')=='train':
             town_amount = {
                 'Town01': 130,
                 'Town02': 60,

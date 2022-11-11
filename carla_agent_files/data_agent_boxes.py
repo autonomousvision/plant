@@ -63,9 +63,9 @@ class DataAgent(AutoPilot):
         self.max_route_distance = 30.0
         self.max_map_element_distance = 30.0
 
-        if self.log_path is not None:
-            self.log_path = Path(self.log_path) / route_index
-            Path(self.log_path).mkdir(parents=True, exist_ok=True) 
+        # if self.log_path is not None:
+        #     self.log_path = Path(self.log_path) / route_index
+        #     Path(self.log_path).mkdir(parents=True, exist_ok=True) 
         
         # self.scenario_logger = ScenarioLogger(
         #     save_path=self.log_path, 
@@ -78,10 +78,12 @@ class DataAgent(AutoPilot):
         
         
         if self.save_path is not None:
-            (self.save_path / 'rgb').mkdir()
-            (self.save_path / 'rgb_augmented').mkdir()
             (self.save_path / 'boxes').mkdir()
-            (self.save_path / 'lidar').mkdir()
+            
+            if self.cfg.SAVE_SENSORS:
+                (self.save_path / 'rgb').mkdir()
+                (self.save_path / 'rgb_augmented').mkdir()
+                (self.save_path / 'lidar').mkdir()
         
     def _init(self, hd_map):
         super()._init(hd_map)
@@ -108,7 +110,7 @@ class DataAgent(AutoPilot):
 
     def sensors(self):
         result = super().sensors()
-        if self.save_path is not None:
+        if self.save_path is not None and self.cfg.SAVE_SENSORS:
             result += [{
                 'type': 'sensor.camera.rgb',
                 'x': self.cfg.camera_pos[0],
@@ -155,19 +157,25 @@ class DataAgent(AutoPilot):
         result = super().tick(input_data)
 
         if self.save_path is not None:
-            rgb = []
-            for pos in ['front']:
-                rgb_cam = 'rgb_' + pos
-
-                rgb.append(input_data[rgb_cam][1][:, :, :3])
-
-            rgb = np.concatenate(rgb, axis=1)
-
-            rgb_augmented = input_data['rgb_augmented'][1][:, :, :3]
-
-            lidar = input_data['lidar']
-
             boxes = self.get_bev_boxes()
+            
+            if self.cfg.SAVE_SENSORS:
+                rgb = []
+                for pos in ['front']:
+                    rgb_cam = 'rgb_' + pos
+
+                    rgb.append(input_data[rgb_cam][1][:, :, :3])
+
+                rgb = np.concatenate(rgb, axis=1)
+
+                rgb_augmented = input_data['rgb_augmented'][1][:, :, :3]
+
+                lidar = input_data['lidar']
+            else:
+                rgb = None
+                rgb_augmented = None
+                lidar = None
+
             
         else:
             rgb = None
@@ -249,14 +257,12 @@ class DataAgent(AutoPilot):
 
     def save_sensors(self, tick_data):
         frame = self.step // self.save_freq
-
-        # CV2 uses BGR internally so we need to swap the image channels before saving.
-        cv2.imwrite(str(self.save_path / 'rgb' / (f'{frame:04}.png')), tick_data['rgb'])
-
-        cv2.imwrite(str(self.save_path / 'rgb_augmented' / (f'{frame:04}.png')), tick_data['rgb_augmented'])
-
-
-        np.save(self.save_path / 'lidar' / ('%04d.npy' % frame), tick_data['lidar'], allow_pickle=True)
+        
+        if self.cfg.SAVE_SENSORS:
+            # CV2 uses BGR internally so we need to swap the image channels before saving.
+            cv2.imwrite(str(self.save_path / 'rgb' / (f'{frame:04}.png')), tick_data['rgb'])
+            cv2.imwrite(str(self.save_path / 'rgb_augmented' / (f'{frame:04}.png')), tick_data['rgb_augmented'])
+            np.save(self.save_path / 'lidar' / ('%04d.npy' % frame), tick_data['lidar'], allow_pickle=True)
 
         self.save_labels(self.save_path / 'boxes' / ('%04d.json' % frame), tick_data['boxes'])
         

@@ -1,0 +1,5 @@
+BENCHMARK: train
+route_rel: leaderboard/data/training/routes/s1/Town01_Scenario1.xml
+routes: ${user.working_dir}/${eval.route_rel}
+scenarios_rel: leaderboard/data/training/scenarios/s1/Town01_Scenario1.json
+scenarios: ${user.working_dir}/${eval.scenarios_rel}

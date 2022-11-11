@@ -1,5 +1,8 @@
 name: PlanT
 
+SHUFFLE_WEATHER: 0
+DATAGEN: 0
+
 agent: ${user.working_dir}/carla_agent_files/PlanT_agent.py
 
 # model_path needs to be adapted depending on the experiment

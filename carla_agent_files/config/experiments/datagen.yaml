@@ -1,0 +1,34 @@
+
+name: datagen
+
+SHUFFLE_WEATHER: 1
+DATAGEN: 1
+SAVE_SENSORS: 0
+
+agent: ${user.working_dir}/carla_agent_files/data_agent_boxes.py
+data_save_path_rel: dataset/carla/PlanT_dataset
+data_save_path: ${user.working_dir}/${experiments.data_save_path_rel}
+agent_root: ${user.working_dir}
+agent_config: ${experiments.agent_root}/log/
+
+
+lidar_pos: [1.3, 0.0, 2.5]  # x, y, z mounting position of the LiDAR
+lidar_rot: [0.0, 0.0, -90.0]  # Roll Pitch Yaw of LiDAR in degreelidar_rotation_frequency = 10  # Number of Hz at which the Lidar operates
+lidar_rotation_frequency: 10  # Number of Hz at which the Lidar operates
+lidar_points_per_second: 600000  # Number of points the LiDAR generates per second. Change in proportion to the rotation frequency.
+lidar_split_height: -2.3  # Height at which the LiDAR points are split into the 2 channels. Is relative to lidar_pos[2]
+
+camera_pos: [-1.5, 0.0, 2.0]  #x, y, z mounting position of the camera
+camera_rot_0: [0.0, 0.0, 0.0]  # Roll Pitch Yaw of camera 0 in degree
+
+camera_width: 900  # Camera width in pixel during data collection
+camera_height: 256  # Camera height in pixel during data collection
+camera_fov_data_collection: 100
+
+# Max and min values by which the augmented camera is shifted left and right
+camera_translation_augmentation_min: -1.0
+camera_translation_augmentation_max: 1.0
+# Max and min values by which the augmented camera is rotated around the yaw
+# Numbers are in degree
+camera_rotation_augmentation_min: -5.0
+camera_rotation_augmentation_max: 5.0

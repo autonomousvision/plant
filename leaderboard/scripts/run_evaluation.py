@@ -34,13 +34,13 @@ def main(cfg):
     # os.environ["LEADERBOARD_ROOT"] = f"leaderboard"
     os.environ["DEBUG_CHALLENGE"] = f"{cfg_org.DEBUG_CHALLENGE}"
     os.environ["CUDA_VISIBLE_DEVICES"]= f"{cfg_org.CUDA_VISIBLE_DEVICES}"
-    os.environ["DATAGEN"]= f"{cfg_org.DATAGEN}"
-    os.environ["SHUFFLE_WEATHER"]= f"{cfg_org.SHUFFLE_WEATHER}"
+    os.environ["DATAGEN"]= f"{cfg.DATAGEN}"
+    os.environ["SHUFFLE_WEATHER"]= f"{cfg.SHUFFLE_WEATHER}"
     os.environ["BENCHMARK"]= f"{cfg_org.eval.BENCHMARK}"
     os.environ["SAVE_GIF"]= f"{cfg_org.save_gif}"
     os.environ["LOG_SAVE_PATH"]= f"{cfg_org.log_save_path}"
 
-    if int(cfg_org.DATAGEN) == 0:
+    if int(cfg.DATAGEN) == 0:
         os.environ["LOAD_CKPT_PATH"]= f"{cfg.model_ckpt_load_path}"
     else:
         os.environ["DATA_SAVE_PATH"]= f"{cfg.data_save_path}"

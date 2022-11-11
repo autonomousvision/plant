@@ -137,9 +137,9 @@ dmypy.json
 
 ## Custom
 carla
-# data
-checkpoints
-checkpoints_results
-start_eval_slurm.sh
+data
+outputs
+checkpoints*
+start*.py
 max_num_job.txt
 carla_agent_files/config/user/katrin.yaml
