@@ -142,4 +142,3 @@ outputs
 checkpoints*
 start*.py
 max_num_job.txt
-carla_agent_files/config/user/katrin.yaml

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-mkdir data2
-cd data2
+mkdir data
+cd data
 
 # Download license file
 wget https://s3.eu-central-1.amazonaws.com/avg-projects/plant/LICENSE.txt
