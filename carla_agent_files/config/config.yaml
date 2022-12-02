@@ -11,6 +11,7 @@ trafficManagerPort: 8000
 trafficManagerSeed: 0
 dataProviderSeed: 0
 debug: 0
+viz: 0
 record: ''
 timeout: 600.0
 

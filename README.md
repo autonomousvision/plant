@@ -1,6 +1,9 @@
 # PlanT: Explainable Planning Transformers via Object-Level Representations
 
-**Note**: We made some changes in the agent files to ensure compatibility with our perception PlanT. We therefore uploaded new checkpoint files. The old one does not work anymore with the current code.
+
+**News**: \
+**02.12.2022:** We released the perception checkpoint and the code for the SENSORS and MAP track agent. Conda environment needs to be updated. Checkpoints of the perception are in the checkpoint folder. Please download again. \
+**11.11.2022:** We made some changes in the agent files to ensure compatibility with our perception PlanT. We therefore uploaded new checkpoint files. The old one does not work anymore with the current code.
 
 ## [Paper](https://www.katrinrenz.de/plant/resources/2022_PlanT_CoRL.pdf) | [Project Page](http://www.katrinrenz.de/plant)
 
@@ -14,21 +17,13 @@ This repository provides code for the following paper:
 ![demo](gfx/plant_teaser.gif)
 
 # Content
-* [ToDos](#todos)
 * [Setup](#setup)
 * [Data and models](#data-and-models)
 * [Data generation](#data-generation)
 * [Training](#training)
 * [Evaluation](#evaluation)
+* [Perception PlanT](#perception-plant)
 * [Citation](#citation)
-
-## ToDos
-- [x] Best checkpoint + evaluation
-- [x] Other checkpoints
-- [x] Training
-- [x] Data generation + Dataset
-- [ ] PlanT with perception
-- [ ] Explainability metric
 
 
 ## Setup
@@ -46,6 +41,11 @@ chmod +x setup_carla.sh
 # 3. Setup conda environment
 chmod +x setup_env.sh
 ./setup_env.sh
+
+conda activate plant
+pip install -U openmim
+mim install mmcv-full==1.7.0
+pip install mmdet
 ```
 
 
@@ -93,13 +93,35 @@ To change any hyperparameters have a look at `training/config/model/PlanT.yaml`.
 
 
 ## Evaluation
-Start a Carla server (see [Data generation](#data-generation)).
+This evaluates the PlanT model on the specified benchmark (default: longest6). The config is specified in the folder `carla_agent_files/config`.
 
+Start a Carla server (see [Data generation](#data-generation)).\
 When the server is running, start the evaluation with:
 ```
 python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTmedium3x eval=longest6
 ```
-You can find the results of the evaluation in a newly created evaluation folder inside the model folder. If you want to have a (very minimalistic) visualization you can set the `debug` flag (i.e., `python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTmedium3x eval=longest6 debug=1`)
+You can find the results of the evaluation in a newly created evaluation folder inside the model folder. If you want to have a (very minimalistic) visualization you can set the `viz` flag (i.e., `python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTmedium3x eval=longest6 viz=1`)
+
+## Perception PlanT
+We release two PlanT agents suitable for the two CARLA Leaderboard tracks. For the SENSORS track we predict the route with our perception module. In the MAP track model we get the route information from the map. The code is taken from the [TransFuser (PAMI 2022) repo](https://github.com/autonomousvision/transfuser) and adapted for our usecase. The config is specified in the folder `carla_agent_files/config`. The config for the perception model is in `training/Perception/config.py`.
+
+### SENSORS track
+Start a Carla server (see [Data generation](#data-generation)).
+
+When the server is running, start the evaluation with:
+```
+python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTSubmission track=SENSORS eval=longest6 save_path=SENSORSagent
+```
+Visualization can be activated with the `viz` flag, and the unblocking from the TransFuser repo can be activated with the `experiments.unblock` flag.
+
+### MAP track
+Start a Carla server (see [Data generation](#data-generation)).
+
+When the server is running, start the evaluation with:
+```
+python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTSubmissionMap track=MAP eval=longest6 save_path=MAPagent
+```
+Visualization can be activated with the `viz` flag, and the unblocking from the TransFuser repo can be activated with the `experiments.unblock` flag.
 
 ## Citation
 If you use this code and data, please cite the following:

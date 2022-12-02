@@ -1,10 +1,17 @@
 import os
 import json
-import time
+import math
 from pathlib import Path
-from tkinter import N
+from PIL import Image
 from omegaconf import OmegaConf
+from collections import deque
+from copy import deepcopy
 from PIL import Image, ImageDraw, ImageOps
+import time
+
+import hydra
+from hydra import compose, initialize
+
 
 import cv2
 import torch
@@ -14,37 +21,52 @@ import carla
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 from carla_agent_files.agent_utils.filter_functions import *
-from carla_agent_files.agent_utils.coordinate_utils import preprocess_compass, inverse_conversion_2d
+from carla_agent_files.agent_utils import transfuser_utils
 
-from carla_agent_files.data_agent_boxes import DataAgent
+from leaderboard.autoagents import autonomous_agent
+from carla_agent_files.perception_submissionagent import PerceptionAgent
 from training.PlanT.dataset import generate_batch, split_large_BB
 from training.PlanT.lit_module import LitHFLM
+from training.Perception.config import GlobalConfig
 
-from nav_planner import extrapolate_waypoint_route
-from nav_planner import RoutePlanner_new as RoutePlanner
-from scenario_logger import ScenarioLogger
+from carla_agent_files.nav_planner import RoutePlanner_new as RoutePlanner
 
 def get_entry_point():
-    return 'PlanTAgent'
+    return 'PlanTPerceptionAgent'
 
-SAVE_GIF = os.getenv("SAVE_GIF", 'False').lower() in ('true', '1', 't')
+# SAVE_GIF = os.getenv("SAVE_GIF", 'False').lower() in ('true', '1', 't')
 
 
-class PlanTAgent(DataAgent):
+class PlanTPerceptionAgent(autonomous_agent.AutonomousAgent):
     def setup(self, path_to_conf_file, route_index=None, cfg=None, exec_or_inter=None):
         self.cfg = cfg
-        self.exec_or_inter = exec_or_inter
-
+        
+        # hydra.core.global_hydra.GlobalHydra.instance().clear()
+        # initialize(config_path="config", job_name="test_app")
+        # cfg = compose(config_name="config")
+        # print(OmegaConf.to_yaml(cfg))
+        self.step = 0
+        self.initialized = False
+        # self.cfg = cfg.experiments
+        self.cnt = 0
+        
+        self.stuck_detector = 0
+        self.forced_move = 0
+        self.use_lidar_safe_check = True
+        
+        torch.cuda.empty_cache()
+        self.track = autonomous_agent.Track.SENSORS
+        
         # first args than super setup is important!
-        args_file = open(os.path.join(path_to_conf_file, 'args.txt'), 'r')
+        args_file = open(os.path.join(path_to_conf_file, f'{self.cfg.model_ckpt_load_path}/log/args.txt'), 'r')
         self.args = json.load(args_file)
         args_file.close()
         self.cfg_agent = OmegaConf.create(self.args)
+        self.config = GlobalConfig(setting='eval')
 
-        super().setup(path_to_conf_file, route_index, cfg, exec_or_inter)
-
-        print(f'Saving gif: {SAVE_GIF}')
-
+        self.steer_damping = self.config.steer_damping
+        self.perception_agent = PerceptionAgent(Path(f'{path_to_conf_file}/{self.cfg.perception_ckpt_load_path}'))
+        self.perception_agent.cfg = self.cfg
         
         # Filtering
         self.points = MerweScaledSigmaPoints(n=4,
@@ -56,7 +78,7 @@ class PlanTAgent(DataAgent):
                     dim_z=4,
                     fx=bicycle_model_forward,
                     hx=measurement_function_hx,
-                    dt=1/self.frame_rate,
+                    dt=self.config.carla_frame_rate,
                     points=self.points,
                     x_mean_fn=state_mean,
                     z_mean_fn=measurement_mean,
@@ -73,19 +95,9 @@ class PlanTAgent(DataAgent):
         self.filter_initialized = False
         # Stores the last filtered positions of the ego vehicle.
         # Used to realign.
-        self.state_log = deque(maxlen=2)
+        self.state_log = deque(maxlen=4)
 
-
-        # exec_or_inter is used for the interpretability metric
-        # exec is the model that executes the actions in carla
-        # inter is the model that obtains attention scores and a ranking of the vehicles importance
-        if exec_or_inter is not None:
-            if exec_or_inter == 'exec':
-                LOAD_CKPT_PATH = cfg.exec_model_ckpt_load_path
-            elif exec_or_inter == 'inter':
-                LOAD_CKPT_PATH = cfg.inter_model_ckpt_load_path
-        else:
-            LOAD_CKPT_PATH = cfg.model_ckpt_load_path
+        LOAD_CKPT_PATH = f'{path_to_conf_file}/{self.cfg.model_ckpt_load_path}/checkpoints/epoch=0{self.cfg.PlanT_epoch}.ckpt'
 
         print(f'Loading model from {LOAD_CKPT_PATH}')
 
@@ -94,27 +106,17 @@ class PlanTAgent(DataAgent):
         else:
             raise Exception(f'Unknown model type: {Path(LOAD_CKPT_PATH).suffix}')
         self.net.eval()
-        self.scenario_logger = False
+        
 
-        if self.log_path is not None:
-            self.log_path = Path(self.log_path) / route_index
-            Path(self.log_path).mkdir(parents=True, exist_ok=True)   
-                 
-            self.scenario_logger = ScenarioLogger(
-                save_path=self.log_path, 
-                route_index=self.route_index,
-                logging_freq=self.save_freq,
-                log_only=False,
-                route_only=False, # with vehicles and lights
-                roi = self.detection_radius+10,
-            )
-            
-            
-
-    def _init(self, hd_map):
-        super()._init(hd_map)
-        self._route_planner = RoutePlanner(7.5, 50.0)
+    def _init(self):
+        
+        self._route_planner = RoutePlanner(self.config.route_planner_min_distance,
+                                       self.config.route_planner_max_distance)
         self._route_planner.set_route(self._global_plan, True)
+        self.initialized = True
+        # manually need to set global_route:
+        self.perception_agent._global_plan_world_coord = self._global_plan_world_coord
+        self.perception_agent._global_plan = self._global_plan
         self.save_mask = []
         self.save_topdowns = []
         self.timings_run_step = []
@@ -122,47 +124,113 @@ class PlanTAgent(DataAgent):
 
         self.keep_ids = None
 
+        self.initialized = True
         self.control = carla.VehicleControl()
         self.control.steer = 0.0
         self.control.throttle = 0.0
         self.control.brake = 1.0
 
-        self.initialized = True
-
-        if self.scenario_logger:
-            from srunner.scenariomanager.carla_data_provider import CarlaDataProvider # privileged
-            self._vehicle = CarlaDataProvider.get_hero_actor()
-            self.scenario_logger.ego_vehicle = self._vehicle
-            self.scenario_logger.world = self._vehicle.get_world()
-            
-            vehicle = CarlaDataProvider.get_hero_actor()
-            self.scenario_logger.ego_vehicle = vehicle
-            self.scenario_logger.world = vehicle.get_world()
-
 
     def sensors(self):
-        result = super().sensors()
+        result = [
+                    {
+                        'type': 'sensor.camera.rgb',
+                        'x': self.cfg.camera_pos[0],
+                        'y': self.cfg.camera_pos[1],
+                        'z': self.cfg.camera_pos[2],
+                        'roll': self.cfg.camera_rot_0[0],
+                        'pitch': self.cfg.camera_rot_0[1],
+                        'yaw': self.cfg.camera_rot_0[2],
+                        'width': self.cfg.camera_width,
+                        'height': self.cfg.camera_height,
+                        'fov': self.cfg.camera_fov_data_collection,
+                        'id': 'rgb_front'
+                    },
+                    {
+                        'type': 'sensor.lidar.ray_cast',
+                        'x': self.cfg.lidar_pos[0], 
+                        'y': self.cfg.lidar_pos[1], 
+                        'z': self.cfg.lidar_pos[2],
+                        'roll': self.cfg.lidar_rot[0], 
+                        'pitch': self.cfg.lidar_rot[1], 
+                        'yaw': self.cfg.lidar_rot[2],
+                        'id': 'lidar'
+                        },
+                    {
+                        'type': 'sensor.other.imu',
+                        'x': 0.0,
+                        'y': 0.0,
+                        'z': 0.0,
+                        'roll': 0.0,
+                        'pitch': 0.0,
+                        'yaw': 0.0,
+                        'sensor_tick': self.config.carla_frame_rate,
+                        'id': 'imu'
+                    }, {
+                        'type': 'sensor.other.gnss',
+                        'x': 0.0,
+                        'y': 0.0,
+                        'z': 0.0,
+                        'roll': 0.0,
+                        'pitch': 0.0,
+                        'yaw': 0.0,
+                        'sensor_tick': 0.01,
+                        'id': 'gps'
+                    }, {
+                        'type': 'sensor.speedometer',
+                        'reading_frequency': self.config.carla_fps,
+                        'id': 'speed'
+                    }
+        ]
         return result
+    
+    def _get_position(self, gps):
+        gps = (gps - self._route_planner.mean) * self._route_planner.scale
+        return gps
 
 
-    def tick(self, input_data):
-        result = super().tick(input_data)
+    def tick(self, input_data, future_wp=None):
 
-        pos = self._route_planner.convert_gps_to_carla(input_data['gps'][1][:2])
+        rgb = []
+        rgb.append(cv2.cvtColor(input_data['rgb_front'][1][:, :, :3], cv2.COLOR_BGR2RGB))
+        rgb = np.concatenate(rgb, axis=1)
+        
+        lidar = input_data['lidar'][1][:, :3]
+        
+        gps = input_data['gps'][1][:2]
         speed = input_data['speed'][1]['speed']
-        compass = preprocess_compass(input_data['imu'][1][-1])
-
+        compass = transfuser_utils.preprocess_compass(input_data['imu'][1][-1])
+            
+        pos = self._route_planner.convert_gps_to_carla(input_data['gps'][1][:2])
+        
+        pos_old = self._get_position(gps)
+        
+        compass_old = input_data['imu'][1][-1]
+        if (np.isnan(compass_old) == True): # CARLA 0.9.10 occasionally sends NaN values in the compass
+            compass_old = 0.0
+            
+        result = {
+                'rgb': rgb,
+                'lidar': lidar,
+                'gps': pos,
+                'gps_old': pos_old,
+                'speed': speed,
+                'compass': compass,
+                'compass_old': compass_old,
+                }
+        
         
         if not self.filter_initialized:
             self.ukf.x = np.array([pos[0], pos[1], compass, speed])
             self.filter_initialized = True
-
+            
         self.ukf.predict(steer=self.control.steer,
                         throttle=self.control.throttle,
                         brake=self.control.brake)
         self.ukf.update(np.array([pos[0], pos[1], compass, speed]))
         filtered_state = self.ukf.x
         self.state_log.append(filtered_state)
+        
         result['gps'] = filtered_state[0:2]
 
         waypoint_route = self._route_planner.run_step(filtered_state[0:2])
@@ -176,105 +244,169 @@ class PlanTAgent(DataAgent):
         else:
             target_point, _ = waypoint_route[0]
             next_target_point, _ = waypoint_route[0]
-
-        ego_target_point = inverse_conversion_2d(target_point, result['gps'], compass)
-        result['target_point'] = tuple(ego_target_point)
-
-        if SAVE_GIF == True and (self.exec_or_inter is None or self.exec_or_inter == 'inter'):
-            result['spec'] = input_data['spec']
-            result['rgb_back'] = input_data['rgb_back']
-            result['sem_back'] = input_data['sem_back']
             
-        if self.scenario_logger:
-            waypoint_route = self._waypoint_planner.run_step(filtered_state[0:2])
-            waypoint_route = extrapolate_waypoint_route(waypoint_route,
-                                                        10)
-            route = np.array([[node[0][1], -node[0][0]] for node in waypoint_route]) \
-                [:10]
-            # Logging
-            self.scenario_logger.log_step(route)
+        next_wp, next_cmd = waypoint_route[1] if len(
+            waypoint_route) > 1 else waypoint_route[0]
+        result['next_command'] = next_cmd.value
+
+        theta = compass + np.pi / 2
+        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                    [np.sin(theta), np.cos(theta)]])
+
+        local_command_point = np.array(
+            [next_wp[0] - filtered_state[0], next_wp[1] - filtered_state[1]])
+        local_command_point = rotation_matrix.T.dot(local_command_point)
+        # result['target_point_old'] = local_command_point
+        
+        ego_target_point_raw = transfuser_utils.inverse_conversion_2d(target_point, result['gps'], result['compass'])
+        result['target_point_single'] = tuple(ego_target_point_raw)
+        
+        ego_target_point = torch.from_numpy(ego_target_point_raw[np.newaxis]).to('cuda', dtype=torch.float32)
+        if self.config.use_second_tp:
+            ego_next_target_point = transfuser_utils.inverse_conversion_2d(next_target_point, result['gps'],
+                                                                            result['compass'])
+            ego_next_target_point = torch.from_numpy(ego_next_target_point[np.newaxis]).to('cuda', dtype=torch.float32)
+            ego_target_point_double = torch.cat((ego_target_point, ego_next_target_point), dim=1)
+
+        result['target_point'] = ego_target_point_double
+
 
         return result
 
 
     @torch.no_grad()
-    def run_step(self, input_data, timestamp, sensors=None,  keep_ids=None):
+    def run_step(self, input_data, timestamp, keep_ids=None):
         
         self.keep_ids = keep_ids
 
         self.step += 1
         if not self.initialized:
-            if ('hd_map' in input_data.keys()):
-                self._init(input_data['hd_map'])
-            else:
-                self.control = carla.VehicleControl()
-                self.control.steer = 0.0
-                self.control.throttle = 0.0
-                self.control.brake = 1.0
-                if self.exec_or_inter == 'inter':
-                    return [], None
-                return self.control
-
-        # needed for traffic_light_hazard
-        _ = super()._get_brake(stop_sign_hazard=0, vehicle_hazard=0, walker_hazard=0)
+            
+            self._init()
+            self.control = carla.VehicleControl()
+            self.control.steer = 0.0
+            self.control.throttle = 0.0
+            self.control.brake = 1.0
+            # if self.exec_or_inter == 'inter':
+            #     return [], None
+            _ = self.tick(input_data)
+            return self.control
+            
         tick_data = self.tick(input_data)
-        label_raw = super().get_bev_boxes(input_data=input_data, pos=tick_data['gps'])
         
-        if self.exec_or_inter == 'inter':
-            keep_vehicle_ids = self._get_control(label_raw, tick_data)
-            return keep_vehicle_ids
-        elif self.exec_or_inter == 'exec' or self.exec_or_inter is None:
-            self.control = self._get_control(label_raw, tick_data)
+        label_raw_gt = [{'class': 'Car', 'extent': [1.5107464790344238, 4.901683330535889, 2.128324270248413], 'position': [-1.3, 0.0, -2.5], 'yaw': 0, 'num_points': -1, 'distance': -1, 'speed': 0.0, 'brake': 0.0, 'id': 99999}]
+        self.traffic_light_hazard_pred = None
+        self.traffic_light_hazard = False
+        # self.perception_agent._vehicle = self._vehicle
+        label_raw, pred_traffic_light = self.perception_agent.run_step(input_data, tick_data, self.state_log, label_raw_gt, self.traffic_light_hazard)
+        # if self.cfg.perc_traffic_light:
+        self.traffic_light_hazard_pred = pred_traffic_light
+        self.control = self._get_control(label_raw, label_raw_gt, tick_data)
             
+        self.perception_agent.control = self.control
+
+        if self.cfg.traffic_light_brake:
+            if self.traffic_light_hazard_pred:
+                self.control.brake = 1.0
+                self.control.throttle = 0.0
+                self.control.steer = 0.0
         
-        inital_frames_delay = 40
-        if self.step < inital_frames_delay:
-            self.control = carla.VehicleControl(0.0, 0.0, 1.0)
-            
         return self.control
 
 
-    def _get_control(self, label_raw, input_data):
+    def _get_control(self, label_raw, label_raw_gt, input_data):
         
         gt_velocity = torch.FloatTensor([input_data['speed']]).unsqueeze(0)
-        input_batch = self.get_input_batch(label_raw, input_data)
+        input_batch = self.get_input_batch(label_raw, label_raw_gt, input_data)
         x, y, _, tp, light = input_batch
     
         _, _, pred_wp, attn_map = self.net(x, y, target_point=tp, light_hazard=light)
 
-        steer, throttle, brake = self.net.model.control_pid(pred_wp[:1], gt_velocity)
+
+        is_stuck = False
+        if self.cfg.unblock:
+            # unblock
+            # divide by 2 because we process every second frame
+            # 1100 = 55 seconds * 20 Frames per second, we move for 1.5 second = 30 frames to unblock
+            if(self.stuck_detector > self.config.stuck_threshold and self.forced_move < self.config.creep_duration):
+                print("Detected agent being stuck. Move for frame: ", self.forced_move)
+                is_stuck = True
+                self.forced_move += 1
+
+
+        steer, throttle, brake = self.net.model.control_pid(pred_wp[:1], gt_velocity, is_stuck)
 
         if brake < 0.05: brake = 0.0
         if throttle > brake: brake = 0.0
 
         if brake:
             steer *= self.steer_damping
+            
+        if self.cfg.unblock:
+            if(gt_velocity < 0.1): # 0.1 is just an arbitrary low number to threshhold when the car is stopped
+                self.stuck_detector += 1
+            elif(gt_velocity > 0.1 and is_stuck == False):
+                self.stuck_detector = 0
+                self.forced_move    = 0
+            if is_stuck:
+                steer *= self.steer_damping
+                
+            # safety check
+            safety_box = deepcopy(input_data['lidar'])
+            safety_box[:, 1] *= -1  # invert
+
+            # z-axis
+            safety_box      = safety_box[safety_box[..., 2] > self.config.safety_box_z_min]
+            safety_box      = safety_box[safety_box[..., 2] < self.config.safety_box_z_max]
+
+            # y-axis
+            safety_box      = safety_box[safety_box[..., 1] > self.config.safety_box_y_min]
+            safety_box      = safety_box[safety_box[..., 1] < self.config.safety_box_y_max]
+
+            # x-axis
+            safety_box      = safety_box[safety_box[..., 0] > self.config.safety_box_x_min]
+            safety_box      = safety_box[safety_box[..., 0] < self.config.safety_box_x_max]
 
         control = carla.VehicleControl()
         control.steer = float(steer)
         control.throttle = float(throttle)
         control.brake = float(brake)
+        
+        if self.cfg.unblock:
+            if self.use_lidar_safe_check:
+                emergency_stop = (len(safety_box) > 0) #Checks if the List is empty
+                if ((emergency_stop == True) and (is_stuck == True)):  # We only use the saftey box when unblocking
+                    print("Detected object directly in front of the vehicle. Stopping. Step:", self.step)
+                    control.steer = float(steer)
+                    control.throttle = float(0.0)
+                    control.brake = float(True)
+                    # Will overwrite the stuck detector. If we are stuck in traffic we do want to wait it out.
+        
+        if self.step < 5:
+            control.brake = float(1.0)
+            control.throttle = float(0.0)
 
-        viz_trigger = ((self.step % 20 == 0) and self.cfg.viz)
+        viz_trigger = (self.step % 20 == 0 and self.cfg.viz)
+        # viz_trigger = True
         if viz_trigger and self.step > 2:
-            create_BEV(label_raw, light, tp, pred_wp)
-
-        if self.exec_or_inter == 'inter':
-            attn_vector = self.get_attn_norm_vehicles(attn_map)
-            keep_vehicle_ids, attn_indices = self.get_vehicleID_from_attn_scores(attn_vector)
+            create_BEV(label_raw, light, tp, pred_wp, label_raw_gt)
             
-            return keep_vehicle_ids, attn_indices
-
         return control
     
     
-    def get_input_batch(self, label_raw, input_data):
+    def get_input_batch(self, label_raw, label_raw_gt, input_data):
         sample = {'input': [], 'output': [], 'brake': [], 'waypoints': [], 'target_point': [], 'light': []}
 
         if self.cfg_agent.model.training.input_ego:
             data = label_raw
+            # data_gt = label_raw_gt
         else:
             data = label_raw[1:] # remove first element (ego vehicle)
+            # data_gt = label_raw_gt[1:] # remove first element (ego vehicle)
+
+        data_raw_vehicles = data
+        data_raw_route = data
+
 
         data_car = [[
             1., # type indicator for cars
@@ -284,7 +416,7 @@ class PlanTAgent(DataAgent):
             float(x['speed'] * 3.6), # in km/h
             float(x['extent'][2]),
             float(x['extent'][1]),
-            ] for x in data if x['class'] == 'Car'] # and ((self.cfg_agent.model.training.remove_back and float(x['position'][0])-float(label_raw[0]['position'][0]) >= 0) or not self.cfg_agent.model.training.remove_back)]
+            ] for x in data_raw_vehicles if x['class'] == 'Car']
 
         # if we use the far_node as target waypoint we need the route as input
         data_route = [
@@ -297,7 +429,7 @@ class PlanTAgent(DataAgent):
                 float(x['extent'][2]),
                 float(x['extent'][1]),
             ] 
-            for j, x in enumerate(data)
+            for j, x in enumerate(data_raw_route)
             if x['class'] == 'Route' 
             and float(x['id']) < self.cfg_agent.model.training.max_NextRouteBBs]
         
@@ -337,18 +469,24 @@ class PlanTAgent(DataAgent):
 
         # dummy data
         sample['output'] = features
-        sample['light'] = self.traffic_light_hazard
+        sample['light'] = self.traffic_light_hazard_pred
 
-        local_command_point = np.array([input_data['target_point'][0], input_data['target_point'][1]])
+        local_command_point = np.array([input_data['target_point_single'][0], input_data['target_point_single'][1]])
+        # local_command_point = np.array([input_data['target_point'][0], input_data['target_point'][1]])
         sample['target_point'] = local_command_point
 
         batch = [sample]
         
         input_batch = generate_batch(batch)
         
-        self.data = data
+        self.data = data_raw_vehicles
         self.data_car = data_car
         self.data_route = data_route
+        
+        # self.cnt+=1
+        
+        # if True:
+        #     create_BEV_debug(data_car, data_route, True, False, inp='input', cnt=self.cnt, visualize=True)
         
         return input_batch
     
@@ -414,16 +552,12 @@ class PlanTAgent(DataAgent):
 
 
     def destroy(self):
-        super().destroy()
-        if self.scenario_logger:
-            self.scenario_logger.dump_to_json()
-            del self.scenario_logger
-            
+        # super().destroy()
+        hydra.core.global_hydra.GlobalHydra.instance().clear()
         del self.net
-        
+        self.perception_agent.destroy()
 
-
-def create_BEV(labels_org, gt_traffic_light_hazard, target_point, pred_wp, pix_per_m=5):
+def create_BEV(labels_org, gt_traffic_light_hazard, target_point, pred_wp, label_raw_gt, pix_per_m=5):
 
     pred_wp = np.array(pred_wp.squeeze())
     s=0
@@ -450,13 +584,7 @@ def create_BEV(labels_org, gt_traffic_light_hazard, target_point, pred_wp, pix_p
     imgs = [image_0, image_1, image_2]
     
     for ix, sequence in enumerate([labels_org]):
-               
-        # features = rearrange(features, '(vehicle features) -> vehicle features', features=4)
         for ixx, vehicle in enumerate(sequence):
-            # draw vehicle
-            # if vehicle['class'] != 'Car':
-            #     continue
-            
             x = -vehicle['position'][1]*PIXELS_PER_METER + origin[1]
             y = -vehicle['position'][0]*PIXELS_PER_METER + origin[0]
             yaw = vehicle['yaw']* 180 / 3.14159265359
@@ -483,7 +611,42 @@ def create_BEV(labels_org, gt_traffic_light_hazard, target_point, pred_wp, pix_p
                 image = np.array(imgs[ix])
                 point = (int(x), int(y))
                 cv2.circle(image, point, radius=3, color=color[0], thickness=3)
+                p1, p2, p3, p4 = get_coords_BB(x, y, yaw-90, extent_x, extent_y)
+                draws[ix].polygon((p1, p2, p3, p4), outline=color[ix]) #, fill=color[ix])
                 imgs[ix] = Image.fromarray(image)
+                
+                                
+    for ix, sequence in enumerate([label_raw_gt]):
+        for ixx, vehicle in enumerate(sequence):
+            x = -vehicle['position'][1]*PIXELS_PER_METER + origin[1]
+            y = -vehicle['position'][0]*PIXELS_PER_METER + origin[0]
+            yaw = vehicle['yaw']* 180 / 3.14159265359
+            extent_x = vehicle['extent'][2]*PIXELS_PER_METER/2
+            extent_y = vehicle['extent'][1]*PIXELS_PER_METER/2
+            origin_v = (x, y)
+            
+            if vehicle['class'] == 'Car':
+                p1, p2, p3, p4 = get_coords_BB(x, y, yaw-90, extent_x, extent_y)
+                if ixx == 0:
+                    pass
+                else:                
+                    draws[2].polygon((p1, p2, p3, p4), outline=color[0]) #, fill=color[ix])
+                
+                if 'speed' in vehicle:
+                    vel = vehicle['speed']*3 #/3.6 # in m/s # just for visu
+                    endx1, endy1, endx2, endy2 = get_coords(x, y, yaw-90, vel)
+                    draws[2].line((endx1, endy1, endx2, endy2), fill=color[0], width=2)
+
+            elif vehicle['class'] == 'Route':
+                ix = 2
+                image = np.array(imgs[ix])
+                point = (int(x), int(y))
+                cv2.circle(image, point, radius=3, color=color[0], thickness=1)
+                p1, p2, p3, p4 = get_coords_BB(x, y, yaw-90, extent_x, extent_y)
+                draws[ix].polygon((p1, p2, p3, p4), outline=color[0]) #, fill=color[ix])
+                imgs[ix] = Image.fromarray(image)
+                
+    
                 
     for wp in pred_wp:
         x = wp[1]*PIXELS_PER_METER + origin[1]
@@ -524,8 +687,8 @@ def create_BEV(labels_org, gt_traffic_light_hazard, target_point, pred_wp, pix_p
     # all_images = np.concatenate((rgb_image, all_images), axis=0)
     all_images = img_final
     
-    Path(f'bev_viz').mkdir(parents=True, exist_ok=True)
-    all_images.save(f'bev_viz/{time.time()}_{s}.png')
+    Path(f'bev_viz1').mkdir(parents=True, exist_ok=True)
+    all_images.save(f'bev_viz1/{time.time()}_{s}.png')
 
     # return BEV
 

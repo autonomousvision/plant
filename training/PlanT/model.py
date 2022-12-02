@@ -322,7 +322,7 @@ class HFLM(nn.Module):
         return input_batch
 
 
-    def control_pid(self, waypoints, velocity):
+    def control_pid(self, waypoints, velocity, is_stuck=False):
         """Predicts vehicle control with a PID controller.
         Args:
             waypoints (tensor): output of self.plan()
@@ -336,6 +336,8 @@ class HFLM(nn.Module):
         speed = velocity[0].data.cpu().numpy()
 
         desired_speed = np.linalg.norm(waypoints[0] - waypoints[1]) * 2.0
+        if is_stuck:
+            desired_speed = np.array(4.0) # default speed of 14.4 km/h
 
         brake = desired_speed < 0.4 or (speed / desired_speed) > 1.1
 

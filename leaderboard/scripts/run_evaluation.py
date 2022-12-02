@@ -41,7 +41,8 @@ def main(cfg):
     os.environ["LOG_SAVE_PATH"]= f"{cfg_org.log_save_path}"
 
     if int(cfg.DATAGEN) == 0:
-        os.environ["LOAD_CKPT_PATH"]= f"{cfg.model_ckpt_load_path}"
+        pass
+        # os.environ["LOAD_CKPT_PATH"]= f"{cfg.model_ckpt_load_path}"
     else:
         os.environ["DATA_SAVE_PATH"]= f"{cfg.data_save_path}"
 

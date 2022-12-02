@@ -96,7 +96,7 @@ class AutonomousAgent(object):
         """
         pass
 
-    def __call__(self):
+    def __call__(self, sensors=None):
         """
         Execute the agent call, e.g. agent()
         Returns the next vehicle controls
