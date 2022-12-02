@@ -5,7 +5,7 @@
 **02.12.2022:** We released the perception checkpoint and the code for the SENSORS and MAP track agent. Conda environment needs to be updated. Checkpoints of the perception are in the checkpoint folder. Please download again. \
 **11.11.2022:** We made some changes in the agent files to ensure compatibility with our perception PlanT. We therefore uploaded new checkpoint files. The old one does not work anymore with the current code.
 
-## [Paper](https://www.katrinrenz.de/plant/resources/2022_PlanT_CoRL.pdf) | [Project Page](http://www.katrinrenz.de/plant)
+## [Project Page](http://www.katrinrenz.de/plant) | [Paper](https://arxiv.org/abs/2210.14222) | [Supplementary](https://www.katrinrenz.de/plant/resources/PlanT_supp.pdf) 
 
 
 This repository provides code for the following paper:
