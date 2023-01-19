@@ -15,6 +15,7 @@ from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 from carla_agent_files.agent_utils.filter_functions import *
 from carla_agent_files.agent_utils.coordinate_utils import preprocess_compass, inverse_conversion_2d
+from carla_agent_files.agent_utils.explainability_utils import *
 
 from carla_agent_files.data_agent_boxes import DataAgent
 from training.PlanT.dataset import generate_batch, split_large_BB
@@ -138,6 +139,12 @@ class PlanTAgent(DataAgent):
             vehicle = CarlaDataProvider.get_hero_actor()
             self.scenario_logger.ego_vehicle = vehicle
             self.scenario_logger.world = vehicle.get_world()
+        
+        if SAVE_GIF == True and (self.exec_or_inter == 'inter'):
+            self.save_path_mask = f'viz_img/{self.route_index}/masked'
+            self.save_path_org = f'viz_img/{self.route_index}/org'
+            Path(self.save_path_mask).mkdir(parents=True, exist_ok=True)
+            Path(self.save_path_org).mkdir(parents=True, exist_ok=True)
 
 
     def sensors(self):
@@ -180,8 +187,7 @@ class PlanTAgent(DataAgent):
         ego_target_point = inverse_conversion_2d(target_point, result['gps'], compass)
         result['target_point'] = tuple(ego_target_point)
 
-        if SAVE_GIF == True and (self.exec_or_inter is None or self.exec_or_inter == 'inter'):
-            result['spec'] = input_data['spec']
+        if SAVE_GIF == True and (self.exec_or_inter == 'inter'):
             result['rgb_back'] = input_data['rgb_back']
             result['sem_back'] = input_data['sem_back']
             
@@ -222,6 +228,8 @@ class PlanTAgent(DataAgent):
         
         if self.exec_or_inter == 'inter':
             keep_vehicle_ids = self._get_control(label_raw, tick_data)
+            # print(f'plant: {keep_vehicle_ids}')
+            
             return keep_vehicle_ids
         elif self.exec_or_inter == 'exec' or self.exec_or_inter is None:
             self.control = self._get_control(label_raw, tick_data)
@@ -260,8 +268,12 @@ class PlanTAgent(DataAgent):
             create_BEV(label_raw, light, tp, pred_wp)
 
         if self.exec_or_inter == 'inter':
-            attn_vector = self.get_attn_norm_vehicles(attn_map)
-            keep_vehicle_ids, attn_indices = self.get_vehicleID_from_attn_scores(attn_vector)
+            attn_vector = get_attn_norm_vehicles(self.cfg.attention_score, self.data_car, attn_map)
+            keep_vehicle_ids, attn_indices, keep_vehicle_attn = get_vehicleID_from_attn_scores(self.data, self.data_car, self.cfg.topk, attn_vector)
+            if SAVE_GIF == True and (self.exec_or_inter == 'inter'):
+                draw_attention_bb_in_carla(self._world, keep_vehicle_ids, keep_vehicle_attn, self.frame_rate_sim)
+                if self.step % 1 == 0:
+                    get_masked_viz_3rd_person(self.save_path_org, self.save_path_mask, self.step, input_data)
             
             return keep_vehicle_ids, attn_indices
 
@@ -353,71 +365,28 @@ class PlanTAgent(DataAgent):
         return input_batch
     
     
-    def get_vehicleID_from_attn_scores(self, attn_vector):
-        # get ids of all vehicles in detection range
-        data_car_ids = [
-            float(x['id'])
-            for x in self.data if x['class'] == 'Car']
-
-        # get topk indices of attn_vector
-        if self.cfg.topk > len(attn_vector):
-            topk = len(attn_vector)
-        else:
-            topk = self.cfg.topk
-        
-        # get topk vehicles indices
-        attn_indices = np.argpartition(attn_vector, -topk)[-topk:]
-        
-        # get carla vehicles ids of topk vehicles
-        keep_vehicle_ids = []
-        for indice in attn_indices:
-            if indice < len(data_car_ids):
-                keep_vehicle_ids.append(data_car_ids[indice])
-        
-        # if we don't have any detected vehicle we should not have any ids here
-        # otherwise we want #topk vehicles
-        if len(self.data_car) > 0:
-            assert len(keep_vehicle_ids) == topk
-        else:
-            assert len(keep_vehicle_ids) == 0
-            
-        return keep_vehicle_ids, attn_indices
-    
-    
-    def get_attn_norm_vehicles(self, attn_map):
-        if self.cfg.experiments['attention_score'] == 'AllLayer':
-            # attention score for CLS token, sum of all heads
-            attn_vector = [np.sum(attn_map[i][0,:,0,1:].numpy(), axis=0) for i in range(len(attn_map))]
-        else:
-            raise NotImplementedError
-            
-        attn_vector = np.array(attn_vector)
-        offset = 0
-        # if no vehicle is in the detection range we add a dummy vehicle
-        if len(self.data_car) == 0:
-            attn_vector = np.asarray([[0.0]])
-            offset = 1
-
-        # sum over layers
-        attn_vector = np.sum(attn_vector, axis=0)
-        
-        # remove route elements
-        attn_vector = attn_vector[:len(self.data_car)+offset]+0.00001
-
-        # get max attention score for normalization
-        # normalization is only for visualization purposes
-        max_attn = np.max(attn_vector)
-        attn_vector = attn_vector / max_attn
-        attn_vector = np.clip(attn_vector, None, 1)
-        
-        return attn_vector
-
-
     def destroy(self):
         super().destroy()
         if self.scenario_logger:
             self.scenario_logger.dump_to_json()
             del self.scenario_logger
+            
+        if SAVE_GIF == True and (self.exec_or_inter == 'inter'):
+            self.save_path_mask_vid = f'viz_vid/masked'
+            self.save_path_org_vid = f'viz_vid/org'
+            Path(self.save_path_mask_vid).mkdir(parents=True, exist_ok=True)
+            Path(self.save_path_org_vid).mkdir(parents=True, exist_ok=True)
+            out_name_mask = f"{self.save_path_mask_vid}/{self.route_index}.mp4"
+            out_name_org = f"{self.save_path_org_vid}/{self.route_index}.mp4"
+            cmd_mask = f"ffmpeg -r 25 -i {self.save_path_mask}/%d.png -c:v libx264 -vf fps=25 -pix_fmt yuv420p {out_name_mask}"
+            cmd_org = f"ffmpeg -r 25 -i {self.save_path_org}/%d.png -c:v libx264 -vf fps=25 -pix_fmt yuv420p {out_name_org}"
+            print(cmd_mask)
+            os.system(cmd_mask)
+            print(cmd_org)
+            os.system(cmd_org)
+            
+            # delete the images
+            os.system(f"rm -rf {Path(self.save_path_mask).parent}")
             
         del self.net
         

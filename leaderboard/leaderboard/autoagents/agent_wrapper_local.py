@@ -25,6 +25,12 @@ from leaderboard.envs.sensor_interface import CallBack, OpenDriveMapReader, Spee
 DATAGEN = int(os.environ.get('DATAGEN'))
 MAX_ALLOWED_RADIUS_SENSOR = 10.0
 
+AGENT_NAME = os.environ.get('AGENT_NAME')
+if AGENT_NAME == 'Explainability':
+    MAX_ALLOWED_RADIUS_SENSOR = 1000.0 #increased for topdown map generation
+else:
+    MAX_ALLOWED_RADIUS_SENSOR = 10.0
+
 SENSORS_LIMITS = {
     'sensor.camera.rgb': 4,
     'sensor.lidar.ray_cast': 1,

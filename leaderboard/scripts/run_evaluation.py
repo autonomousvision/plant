@@ -17,7 +17,7 @@ def main(cfg):
     print(cfg_org.eval.routes)
     print(cfg_org.checkpoint)
     print("Working directory : {}".format(os.getcwd()))
-    print(f'Save gifs: {cfg_org.save_gif}')
+    print(f'Save gifs: {cfg_org.save_explainability_viz}')
 
     # create result folder
     Path(cfg_org.checkpoint).parent.mkdir(parents=True, exist_ok=True)
@@ -32,12 +32,13 @@ def main(cfg):
 
     # os.environ["SCENARIO_RUNNER_ROOT"] = f"scenario_runner"
     # os.environ["LEADERBOARD_ROOT"] = f"leaderboard"
+    os.environ["AGENT_NAME"] = f"{cfg.name}"
     os.environ["DEBUG_CHALLENGE"] = f"{cfg_org.DEBUG_CHALLENGE}"
     os.environ["CUDA_VISIBLE_DEVICES"]= f"{cfg_org.CUDA_VISIBLE_DEVICES}"
     os.environ["DATAGEN"]= f"{cfg.DATAGEN}"
     os.environ["SHUFFLE_WEATHER"]= f"{cfg.SHUFFLE_WEATHER}"
     os.environ["BENCHMARK"]= f"{cfg_org.eval.BENCHMARK}"
-    os.environ["SAVE_GIF"]= f"{cfg_org.save_gif}"
+    os.environ["SAVE_GIF"]= f"{cfg_org.save_explainability_viz}"
     os.environ["LOG_SAVE_PATH"]= f"{cfg_org.log_save_path}"
 
     if int(cfg.DATAGEN) == 0:

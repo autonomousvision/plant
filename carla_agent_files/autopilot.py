@@ -20,7 +20,6 @@ from carla_agent_files.agent_utils.coordinate_utils import preprocess_compass, i
 
 DATA_SAVE_PATH = os.environ.get('DATA_SAVE_PATH', None)
 LOG_SAVE_PATH = os.environ.get('LOG_SAVE_PATH', None)
-# SAVE_GIF = os.getenv("SAVE_GIF", 'False').lower() in ('true', '1', 't')
 
 def get_entry_point():
     return 'AutoPilot'

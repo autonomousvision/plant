@@ -2,6 +2,7 @@
 
 
 **News**: \
+**19.01.2023:** We released the code to generate the attention visualization. \
 **02.12.2022:** We released the perception checkpoint and the code for the SENSORS and MAP track agent. Conda environment needs to be updated. Checkpoints of the perception are in the checkpoint folder. Please download again. \
 **11.11.2022:** We made some changes in the agent files to ensure compatibility with our perception PlanT. We therefore uploaded new checkpoint files. The old one does not work anymore with the current code.
 
@@ -22,6 +23,7 @@ This repository provides code for the following paper:
 * [Data generation](#data-generation)
 * [Training](#training)
 * [Evaluation](#evaluation)
+* [Explainability](#explainability)
 * [Perception PlanT](#perception-plant)
 * [Citation](#citation)
 
@@ -101,6 +103,20 @@ When the server is running, start the evaluation with:
 python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTmedium3x eval=longest6
 ```
 You can find the results of the evaluation in a newly created evaluation folder inside the model folder. If you want to have a (very minimalistic) visualization you can set the `viz` flag (i.e., `python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTmedium3x eval=longest6 viz=1`)
+
+
+## Explainability
+The execution of the explainability agent contains two stages: (1) PlanT forwardpass (no execution of actions) to get attention weights. We filter the vehicles so that only the vehicles with the `topk` attention scores remain as input for the second step. (2) We execute either the expert or PlanT with the filtered input (the agent only sees `topk` vehicles instead of all).
+
+Start a Carla server (see [Data generation](#data-generation)). \
+When the server is running, start the evaluation with:
+```
+python leaderboard/scripts/run_evaluation.py user=$USER experiments=PlanTExplainability experiments.exec_model=Expert experiments.topk=1
+```
+
+To obtain the **attention visualization** set `experiments.topk=100000` and in addition add the flag `save_explainability_viz=True`. This saves a video per route in a `viz_vid` folder. The image resolution can be changed in `carla_agent_files/explainability_agent.py`. \
+*Attention:* saving the videos slows the evaluation down.
+
 
 ## Perception PlanT
 We release two PlanT agents suitable for the two CARLA Leaderboard tracks. For the SENSORS track we predict the route with our perception module. In the MAP track model we get the route information from the map. The code is taken from the [TransFuser (PAMI 2022) repo](https://github.com/autonomousvision/transfuser) and adapted for our usecase. The config is specified in the folder `carla_agent_files/config`. The config for the perception model is in `training/Perception/config.py`.

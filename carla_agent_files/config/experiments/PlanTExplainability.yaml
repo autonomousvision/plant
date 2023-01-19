@@ -1,0 +1,28 @@
+name: Explainability
+
+SHUFFLE_WEATHER: 0
+DATAGEN: 0
+
+exec_model: Expert #PlanT
+inter_model: PlanT
+topk: 100000 #1
+attention_score: AllLayer # masking, gradcam, masking_woGT
+
+agent: ${user.working_dir}/carla_agent_files/explainability_agent.py
+
+
+exec_model_path: checkpoints/PlanT/3x/PlanT_medium
+exec_agent_root: ${user.working_dir}/${experiments.exec_model_path}
+exec_agent_config: ${experiments.exec_agent_root}/log/
+exec_model_ckpt_load_path: "${experiments.exec_agent_root}/checkpoints/epoch=047.ckpt"
+
+inter_model_path: checkpoints/PlanT/3x/PlanT_medium
+inter_agent_root: ${user.working_dir}/${experiments.inter_model_path}
+inter_agent_config: ${experiments.inter_agent_root}/log/
+inter_model_ckpt_load_path: "${experiments.inter_agent_root}/checkpoints/epoch=047.ckpt"
+
+
+model_path: ${experiments.inter_model_path}
+agent_root: ${experiments.inter_agent_root}
+agent_config: None
+model_ckpt_load_path: None

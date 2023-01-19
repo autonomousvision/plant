@@ -3,7 +3,7 @@ defaults:
   - experiments: PlanTmedium3x
   - eval: longest6
 
-save_gif: False
+save_explainability_viz: False
 
 host: localhost
 port: 2000

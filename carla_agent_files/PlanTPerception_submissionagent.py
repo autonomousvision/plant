@@ -34,8 +34,6 @@ from carla_agent_files.nav_planner import RoutePlanner_new as RoutePlanner
 def get_entry_point():
     return 'PlanTPerceptionAgent'
 
-# SAVE_GIF = os.getenv("SAVE_GIF", 'False').lower() in ('true', '1', 't')
-
 
 class PlanTPerceptionAgent(autonomous_agent.AutonomousAgent):
     def setup(self, path_to_conf_file, route_index=None, cfg=None, exec_or_inter=None):

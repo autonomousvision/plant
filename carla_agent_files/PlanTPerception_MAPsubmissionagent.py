@@ -40,7 +40,6 @@ from util.viz_tokens_bev import create_BEV as create_BEV_debug
 def get_entry_point():
     return 'PlanTPerceptionAgent'
 
-# SAVE_GIF = os.getenv("SAVE_GIF", 'False').lower() in ('true', '1', 't')
 
 def interpolate_trajectory(world_map, waypoints_trajectory, hop_resolution=1.0, max_len=100):
     """
@@ -173,8 +172,6 @@ class PlanTPerceptionAgent(autonomous_agent.AutonomousAgent):
         
         # super().setup(path_to_conf_file, route_index, cfg, exec_or_inter)
 
-        # print(f'Saving gif: {SAVE_GIF}')
-        
         # Filtering
         self.points = MerweScaledSigmaPoints(n=4,
                                             alpha=.00001,
