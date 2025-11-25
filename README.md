@@ -1,7 +1,10 @@
 # PlanT: Explainable Planning Transformers via Object-Level Representations
 
+## **PlanT 2.0 is now available [here](https://github.com/autonomousvision/plant2).**
+
 
 **News**: \
+**10.11.2025:** We released Plant 2.0 - [Code](https://github.com/autonomousvision/plant2), [Paper](https://arxiv.org/abs/2511.07292). \
 **19.01.2023:** We released the code to generate the attention visualization. \
 **02.12.2022:** We released the perception checkpoint and the code for the SENSORS and MAP track agent. Conda environment needs to be updated. Checkpoints of the perception are in the checkpoint folder. Please download again. \
 **11.11.2022:** We made some changes in the agent files to ensure compatibility with our perception PlanT. We therefore uploaded new checkpoint files. The old one does not work anymore with the current code.
