@@ -49,7 +49,7 @@ chmod +x setup_env.sh
 
 conda activate plant
 pip install -U openmim
-mim install mmcv-full==1.7.0
+python -m mim install mmcv-full==1.7.0
 pip install mmdet
 ```
 
